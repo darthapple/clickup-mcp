@@ -1,5 +1,10 @@
 # clickup-mcp
 
+[![CI](https://github.com/darthapple/clickup-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/darthapple/clickup-mcp/actions/workflows/ci.yml)
+[![Latest release](https://img.shields.io/github/v/release/darthapple/clickup-mcp)](https://github.com/darthapple/clickup-mcp/releases/latest)
+[![Go version](https://img.shields.io/github/go-mod/go-version/darthapple/clickup-mcp)](go.mod)
+[![License: MIT](https://img.shields.io/github/license/darthapple/clickup-mcp)](LICENSE)
+
 A local MCP server (stdio transport) exposing the ClickUp REST API v2 (plus
 the v3 Chat and Docs APIs) as MCP tools, built on
 [`mark3labs/mcp-go`](https://github.com/mark3labs/mcp-go).
@@ -111,16 +116,81 @@ flag reports `dev`.
 
 ## Wiring into an MCP client
 
-Point any MCP-compatible client at the compiled binary as a local stdio
-subprocess, e.g. in an `mcp.json`:
+Every MCP client below needs the same two things: a path to the `clickup-mcp`
+binary (download from [Releases](#releases), or `go build` it yourself), and
+`CLICKUP_API_TOKEN`/`CLICKUP_TEAM_ID` passed as environment variables — MCP
+clients start this as a subprocess and inject the env vars themselves, so
+they don't need to already be set in your shell.
+
+### Claude Code
+
+```sh
+claude mcp add clickup --scope user \
+  --env CLICKUP_API_TOKEN=pk_xxx \
+  --env CLICKUP_TEAM_ID=xxxxxxxx \
+  -- /path/to/clickup-mcp
+```
+
+`--scope user` makes it available in every project; use `--scope project` to
+write it into `.mcp.json` and share it with a team via git instead. Manage
+with `claude mcp list` / `claude mcp get clickup` / `claude mcp remove clickup`.
+
+### Claude Desktop
+
+Edit the config file directly — `~/Library/Application Support/Claude/claude_desktop_config.json`
+on macOS, `%APPDATA%\Claude\claude_desktop_config.json` on Windows:
 
 ```json
-"clickup": {
-  "command": "/path/to/clickup-mcp",
-  "args": []
+{
+  "mcpServers": {
+    "clickup": {
+      "command": "/path/to/clickup-mcp",
+      "env": {
+        "CLICKUP_API_TOKEN": "pk_xxx",
+        "CLICKUP_TEAM_ID": "xxxxxxxx"
+      }
+    }
+  }
 }
 ```
 
-`CLICKUP_API_TOKEN`/`CLICKUP_TEAM_ID` reach the subprocess via inherited
-environment variables, so make sure they're set in the parent process's
-environment (e.g. via `--env-file .env` if the client runs in a container).
+Restart Claude Desktop after editing.
+
+### Cursor / Windsurf / any client using an `mcp.json`-style config
+
+Most other MCP clients (Cursor's `.cursor/mcp.json`, Windsurf's
+`~/.codeium/windsurf/mcp_config.json`, etc.) accept the same shape:
+
+```json
+{
+  "mcpServers": {
+    "clickup": {
+      "command": "/path/to/clickup-mcp",
+      "args": [],
+      "env": {
+        "CLICKUP_API_TOKEN": "pk_xxx",
+        "CLICKUP_TEAM_ID": "xxxxxxxx"
+      }
+    }
+  }
+}
+```
+
+Check that specific client's docs for the exact config file location and key
+name (`mcpServers` vs `servers`, etc.) if it isn't listed here.
+
+### Always running the latest release
+
+MCP clients need a literal filesystem path, not a URL, so "always latest"
+means re-fetching the binary to a fixed path rather than changing config:
+
+```sh
+curl -sL -o ~/.local/bin/clickup-mcp \
+  https://github.com/darthapple/clickup-mcp/releases/latest/download/clickup-mcp-<os>-<arch>
+chmod +x ~/.local/bin/clickup-mcp
+```
+
+(`<os>`/`<arch>` per the [Releases](#releases) section above, e.g.
+`darwin-arm64`, `linux-amd64`.) Point every client above at
+`~/.local/bin/clickup-mcp`; re-running that `curl` line whenever you want to
+update is all that's needed since the config never has to change.
