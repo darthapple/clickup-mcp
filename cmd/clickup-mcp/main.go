@@ -13,7 +13,16 @@ import (
 	"clickup-mcp/internal/tools"
 )
 
+// version is overridden at build time via -ldflags "-X main.version=vX.Y.Z"
+// (see .github/workflows/release.yml); "dev" for local, unreleased builds.
+var version = "dev"
+
 func main() {
+	if len(os.Args) > 1 && (os.Args[1] == "--version" || os.Args[1] == "-v") {
+		fmt.Println("clickup-mcp " + version)
+		return
+	}
+
 	cfg, err := config.Load()
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "clickup-mcp: "+err.Error())
@@ -22,7 +31,7 @@ func main() {
 
 	client := clickup.NewClient(cfg)
 
-	s := server.NewMCPServer("clickup-mcp", "0.1.0",
+	s := server.NewMCPServer("clickup-mcp", version,
 		server.WithInstructions(
 			"All timestamp fields returned by ClickUp (start, end, duration, "+
 				"at, date_created, due_date, etc.) are Unix epoch milliseconds "+

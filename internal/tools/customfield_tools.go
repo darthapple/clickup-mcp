@@ -94,6 +94,9 @@ func RegisterCustomFieldTools(s *server.MCPServer, c *clickup.Client) {
 			if err != nil {
 				return ErrorResult(err)
 			}
+			if _, err := req.RequireString("value_json"); err != nil {
+				return ErrorResult(err)
+			}
 			body := map[string]any{}
 			if err := setRawJSON(body, req, "value_json", "value"); err != nil {
 				return ErrorResult(err)

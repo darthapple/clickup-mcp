@@ -1,10 +1,14 @@
-//go:build manual
+//go:build smoke
 
-// Manual, live smoke test against the real ClickUp API. Excluded from
-// `go test ./...`; run explicitly from the module root with:
+// Smoke test: a fast, read-only sanity check against the real ClickUp API —
+// "is the deployed binary able to authenticate and talk to ClickUp at all,"
+// not a thorough correctness check (see e2e_test.go, build tag e2e, for
+// that). Safe to run against any real workspace with zero setup beyond
+// credentials, since it never creates/updates/deletes anything. Excluded
+// from `go test ./...`; run explicitly from the module root with:
 //
 //	go build -o bin/clickup-mcp ./cmd/clickup-mcp
-//	go test -tags manual ./cmd/clickup-mcp/... -run TestSmoke -v
+//	go test -tags smoke ./cmd/clickup-mcp/... -run TestSmoke -v
 //
 // Requires CLICKUP_API_TOKEN and CLICKUP_TEAM_ID in the environment.
 package main
@@ -48,13 +52,36 @@ func TestSmoke(t *testing.T) {
 		t.Logf("  - %s", tool.Name)
 	}
 
-	callAndLog(ctx, t, c, "clickup_get_user", nil)
-	callAndLog(ctx, t, c, "clickup_list_workspaces", nil)
+	teamID := os.Getenv("CLICKUP_TEAM_ID")
+
+	user := callJSON(ctx, t, c, "clickup_get_user", nil)
+	userObj, _ := user["user"].(map[string]any)
+	// GetUser's id comes back as a raw JSON number, unlike the string IDs
+	// used everywhere else in ClickUp's API.
+	if id, ok := userObj["id"].(float64); !ok || id == 0 {
+		t.Errorf("clickup_get_user: user.id = %v, want a non-zero number", userObj["id"])
+	}
+	if _, ok := userObj["username"].(string); !ok {
+		t.Errorf("clickup_get_user: user.username missing or not a string: %+v", userObj)
+	}
+
+	workspaces := callJSON(ctx, t, c, "clickup_list_workspaces", nil)
+	teams, _ := workspaces["teams"].([]any)
+	foundTeam := false
+	for _, tm := range teams {
+		tmMap, _ := tm.(map[string]any)
+		if tmMap["id"] == teamID {
+			foundTeam = true
+			break
+		}
+	}
+	if !foundTeam {
+		t.Errorf("clickup_list_workspaces: CLICKUP_TEAM_ID %q not found among accessible teams: %+v", teamID, teams)
+	}
 
 	// Walk the real hierarchy read-only (no create/update/delete here, since
 	// this runs against the user's live workspace) to exercise Phase 1+2
 	// list/get endpoints end to end.
-	teamID := os.Getenv("CLICKUP_TEAM_ID")
 	spaces := callJSON(ctx, t, c, "clickup_list_spaces", map[string]any{"team_id": teamID})
 	spaceID := firstID(spaces, "spaces")
 	if spaceID == "" {

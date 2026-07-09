@@ -9,11 +9,14 @@ import (
 	"clickup-mcp/internal/clickup"
 )
 
-func buildViewBody(req mcp.CallToolRequest) map[string]any {
-	body := map[string]any{}
-	setString(body, req, "name")
+func buildViewBody(req mcp.CallToolRequest) (map[string]any, error) {
+	name, err := req.RequireString("name")
+	if err != nil {
+		return nil, err
+	}
+	body := map[string]any{"name": name}
 	setString(body, req, "type")
-	return body
+	return body, nil
 }
 
 var viewBodyOptions = []mcp.ToolOption{
@@ -66,7 +69,11 @@ func RegisterViewTools(s *server.MCPServer, c *clickup.Client) {
 			if err != nil {
 				return ErrorResult(err)
 			}
-			out, err := c.CreateSpaceView(ctx, spaceID, buildViewBody(req))
+			body, err := buildViewBody(req)
+			if err != nil {
+				return ErrorResult(err)
+			}
+			out, err := c.CreateSpaceView(ctx, spaceID, body)
 			if err != nil {
 				return ErrorResult(err)
 			}
@@ -104,7 +111,11 @@ func RegisterViewTools(s *server.MCPServer, c *clickup.Client) {
 			if err != nil {
 				return ErrorResult(err)
 			}
-			out, err := c.CreateFolderView(ctx, folderID, buildViewBody(req))
+			body, err := buildViewBody(req)
+			if err != nil {
+				return ErrorResult(err)
+			}
+			out, err := c.CreateFolderView(ctx, folderID, body)
 			if err != nil {
 				return ErrorResult(err)
 			}
@@ -142,7 +153,11 @@ func RegisterViewTools(s *server.MCPServer, c *clickup.Client) {
 			if err != nil {
 				return ErrorResult(err)
 			}
-			out, err := c.CreateListView(ctx, listID, buildViewBody(req))
+			body, err := buildViewBody(req)
+			if err != nil {
+				return ErrorResult(err)
+			}
+			out, err := c.CreateListView(ctx, listID, body)
 			if err != nil {
 				return ErrorResult(err)
 			}

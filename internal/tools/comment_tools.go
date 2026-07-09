@@ -9,12 +9,15 @@ import (
 	"clickup-mcp/internal/clickup"
 )
 
-func buildCommentBody(req mcp.CallToolRequest) map[string]any {
-	body := map[string]any{}
-	setString(body, req, "comment_text")
+func buildCommentBody(req mcp.CallToolRequest) (map[string]any, error) {
+	commentText, err := req.RequireString("comment_text")
+	if err != nil {
+		return nil, err
+	}
+	body := map[string]any{"comment_text": commentText}
 	setBool(body, req, "notify_all")
 	setString(body, req, "assignee")
-	return body
+	return body, nil
 }
 
 func RegisterCommentTools(s *server.MCPServer, c *clickup.Client) {
@@ -54,7 +57,11 @@ func RegisterCommentTools(s *server.MCPServer, c *clickup.Client) {
 			if err != nil {
 				return ErrorResult(err)
 			}
-			out, err := c.CreateTaskComment(ctx, taskID, buildCommentBody(req))
+			body, err := buildCommentBody(req)
+			if err != nil {
+				return ErrorResult(err)
+			}
+			out, err := c.CreateTaskComment(ctx, taskID, body)
 			if err != nil {
 				return ErrorResult(err)
 			}
@@ -92,7 +99,11 @@ func RegisterCommentTools(s *server.MCPServer, c *clickup.Client) {
 			if err != nil {
 				return ErrorResult(err)
 			}
-			out, err := c.CreateListComment(ctx, listID, buildCommentBody(req))
+			body, err := buildCommentBody(req)
+			if err != nil {
+				return ErrorResult(err)
+			}
+			out, err := c.CreateListComment(ctx, listID, body)
 			if err != nil {
 				return ErrorResult(err)
 			}
@@ -130,7 +141,11 @@ func RegisterCommentTools(s *server.MCPServer, c *clickup.Client) {
 			if err != nil {
 				return ErrorResult(err)
 			}
-			out, err := c.CreateViewComment(ctx, viewID, buildCommentBody(req))
+			body, err := buildCommentBody(req)
+			if err != nil {
+				return ErrorResult(err)
+			}
+			out, err := c.CreateViewComment(ctx, viewID, body)
 			if err != nil {
 				return ErrorResult(err)
 			}
@@ -210,7 +225,11 @@ func RegisterCommentTools(s *server.MCPServer, c *clickup.Client) {
 			if err != nil {
 				return ErrorResult(err)
 			}
-			out, err := c.CreateCommentReply(ctx, commentID, buildCommentBody(req))
+			body, err := buildCommentBody(req)
+			if err != nil {
+				return ErrorResult(err)
+			}
+			out, err := c.CreateCommentReply(ctx, commentID, body)
 			if err != nil {
 				return ErrorResult(err)
 			}

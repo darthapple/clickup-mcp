@@ -1,0 +1,137 @@
+# Automatic release pipeline. Runs after CI succeeds on a push to main:
+# 1. `version` job scans commit subjects since the last vX.Y.Z tag for
+#    Conventional Commits (feat:/fix:/BREAKING CHANGE or a "!") to decide the
+#    next semver bump. No matching commits -> no release, job exits cleanly.
+#    Deliberately a small self-contained script (git + gh CLI only) rather
+#    than a third-party semantic-release action, to keep the supply chain
+#    surface small and the logic auditable in one place.
+# 2. `build` job cross-compiles the binary for 5 platforms and uploads each
+#    as a raw (uncompressed) release asset under two names: a versioned one
+#    (clickup-mcp-vX.Y.Z-<os>-<arch>) for pinning, and an unversioned one
+#    (clickup-mcp-<os>-<arch>) that gets overwritten every release so
+#    `.../releases/latest/download/clickup-mcp-<os>-<arch>` always resolves
+#    to the newest build.
+name: Release
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  version:
+    if: github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.bump.outputs.tag }}
+      released: ${{ steps.bump.outputs.released }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 0
+
+      - name: Determine next version and create the release
+        id: bump
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          last_tag=$(git tag --list 'v*.*.*' --sort=-v:refname | head -n1 || true)
+          if [ -z "$last_tag" ]; then
+            range="HEAD"
+            base_version="0.0.0"
+          else
+            range="${last_tag}..HEAD"
+            base_version="${last_tag#v}"
+          fi
+
+          subjects=$(git log "$range" --pretty=format:'%s')
+
+          bump=""
+          if echo "$subjects" | grep -qiE '^[a-zA-Z]+(\([^)]*\))?!:|BREAKING CHANGE'; then
+            bump="major"
+          elif echo "$subjects" | grep -qE '^feat(\([^)]*\))?:'; then
+            bump="minor"
+          elif echo "$subjects" | grep -qE '^fix(\([^)]*\))?:'; then
+            bump="patch"
+          fi
+
+          if [ -z "$bump" ]; then
+            echo "No feat/fix/breaking-change commits since ${last_tag:-repo start}; skipping release."
+            echo "released=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          IFS='.' read -r major minor patch <<< "$base_version"
+          case "$bump" in
+            major) major=$((major + 1)); minor=0; patch=0 ;;
+            minor) minor=$((minor + 1)); patch=0 ;;
+            patch) patch=$((patch + 1)) ;;
+          esac
+          new_tag="v${major}.${minor}.${patch}"
+
+          echo "Bumping ${last_tag:-<none>} -> ${new_tag} (${bump})"
+          git tag "$new_tag"
+          git push origin "$new_tag"
+
+          if [ -n "$last_tag" ]; then
+            gh release create "$new_tag" --title "$new_tag" --generate-notes --notes-start-tag "$last_tag"
+          else
+            gh release create "$new_tag" --title "$new_tag" --generate-notes
+          fi
+
+          echo "tag=${new_tag}" >> "$GITHUB_OUTPUT"
+          echo "released=true" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: version
+    if: needs.version.outputs.released == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+          - goos: linux
+            goarch: arm64
+          - goos: darwin
+            goarch: amd64
+          - goos: darwin
+            goarch: arm64
+          - goos: windows
+            goarch: amd64
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.version.outputs.tag }}
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26.4"
+
+      - name: Build
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: "0"
+        run: |
+          set -euo pipefail
+          ext=""
+          if [ "${{ matrix.goos }}" = "windows" ]; then ext=".exe"; fi
+          mkdir -p dist
+          versioned="dist/clickup-mcp-${{ needs.version.outputs.tag }}-${{ matrix.goos }}-${{ matrix.goarch }}${ext}"
+          latest="dist/clickup-mcp-${{ matrix.goos }}-${{ matrix.goarch }}${ext}"
+          go build -trimpath -ldflags "-s -w -X main.version=${{ needs.version.outputs.tag }}" \
+            -o "$versioned" ./cmd/clickup-mcp
+          cp "$versioned" "$latest"
+
+      - name: Upload release assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload "${{ needs.version.outputs.tag }}" dist/* --clobber
