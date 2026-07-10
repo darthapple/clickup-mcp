@@ -40,6 +40,7 @@ var registerFuncs = []func(*server.MCPServer, *clickup.Client){
 	RegisterCustomTaskTypeTools,
 	RegisterSharedHierarchyTools,
 	RegisterDocTools,
+	RegisterVersionTools,
 }
 
 // expectedToolCount is the total number of distinct MCP tools RegisterAll
@@ -47,7 +48,7 @@ var registerFuncs = []func(*server.MCPServer, *clickup.Client){
 // guard: if a future change accidentally drops (or silently collides) a
 // tool registration, this baseline catches it. Update it deliberately
 // whenever tools are intentionally added or removed.
-const expectedToolCount = 144
+const expectedToolCount = 145
 
 func TestRegisterAllDoesNotPanic(t *testing.T) {
 	s := server.NewMCPServer("test", "1.0.0")

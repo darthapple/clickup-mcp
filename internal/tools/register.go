@@ -6,12 +6,14 @@ import (
 	"clickup-mcp/internal/clickup"
 )
 
-// RegisterAll registers every implemented phase's tools on s.
+// RegisterAll registers every implemented phase's tools on s, plus the
+// standalone server-metadata tool (clickup_get_server_version).
 func RegisterAll(s *server.MCPServer, c *clickup.Client) {
 	RegisterPhase1(s, c)
 	RegisterPhase2(s, c)
 	RegisterPhase3(s, c)
 	RegisterPhase4(s, c)
+	RegisterVersionTools(s, c)
 }
 
 // RegisterPhase1 registers Auth/Workspace tools: user, workspaces, spaces,

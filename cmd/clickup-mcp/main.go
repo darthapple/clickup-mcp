@@ -30,6 +30,7 @@ func main() {
 	}
 
 	client := clickup.NewClient(cfg)
+	tools.ServerVersion = version
 
 	s := server.NewMCPServer("clickup-mcp", version,
 		server.WithInstructions(
