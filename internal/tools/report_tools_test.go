@@ -95,7 +95,17 @@ func TestClickupGetListTimeReport(t *testing.T) {
 					],
 					"last_page": true
 				}`))
+			case "/list/list1/member":
+				_, _ = w.Write([]byte(`{
+					"members": [
+						{"id": 1, "username": "alice"},
+						{"id": 2, "username": "bob"}
+					]
+				}`))
 			case "/team/999/time_entries":
+				if got := r.URL.Query().Get("assignee"); got != "1,2" {
+					t.Errorf("assignee query param = %q, want %q (all list members)", got, "1,2")
+				}
 				_, _ = w.Write([]byte(`{
 					"data": [
 						{"id": "e1", "task": {"id": "task1", "name": "Task One"}, "start": "1000", "end": "61000", "duration": "60000", "description": "work"},

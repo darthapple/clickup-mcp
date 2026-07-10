@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
@@ -19,7 +20,14 @@ func RegisterReportTools(s *server.MCPServer, c *clickup.Client) {
 	s.AddTool(
 		mcp.NewTool("clickup_get_list_time_report",
 			mcp.WithDescription("Return every task in a ClickUp list plus all time tracked to "+
-				"each task within a date range. Includes closed/completed tasks, but NOT "+
+				"each task within a date range, aggregated across every member of the list "+
+				"(not just the calling token's own user) — internally resolves the list's "+
+				"members and queries their entries together, so a task worked on by multiple "+
+				"people reports everyone's combined time, not just one person's. A user with "+
+				"time logged on this list but who is no longer a list member (e.g. removed "+
+				"after logging time) is not covered by this aggregation and their entries "+
+				"will be missing; use clickup_list_time_entries with an explicit assignee for "+
+				"that case. Includes closed/completed tasks, but NOT "+
 				"subtasks (ClickUp's list endpoint omits them unless subtasks are requested "+
 				"separately) — any time entry logged against something other than a top-level "+
 				"task in this list (a subtask, or a deleted task) is returned under top-level "+
@@ -273,8 +281,19 @@ func fetchAllTasksInList(ctx context.Context, c *clickup.Client, listID string) 
 // task, or a subtask, since ClickUp's list endpoint omits subtasks) can
 // still be surfaced and identified by the caller instead of silently
 // dropped.
+//
+// The underlying time-entries endpoint defaults to only the calling token's
+// own entries when no assignee is given, so omitting it here would silently
+// under-report every other user's time (a full report reading back as "no
+// time tracked" rather than erroring). This resolves the list's members
+// first and passes them all as a comma-separated assignee filter, which
+// ClickUp's API accepts, so the report aggregates everyone's time by default.
 func fetchTimeEntriesByTask(ctx context.Context, c *clickup.Client, teamID, listID string, start, end int64) (map[string][]map[string]any, error) {
-	raw, err := c.ListTimeEntries(ctx, teamID, clickup.TimeEntryFilters{ListID: listID, StartDate: &start, EndDate: &end})
+	assignees, err := fetchListMemberIDs(ctx, c, listID)
+	if err != nil {
+		return nil, fmt.Errorf("fetching members of list %s: %w", listID, err)
+	}
+	raw, err := c.ListTimeEntries(ctx, teamID, clickup.TimeEntryFilters{ListID: listID, Assignee: assignees, StartDate: &start, EndDate: &end})
 	if err != nil {
 		return nil, fmt.Errorf("fetching time entries for list %s: %w", listID, err)
 	}
@@ -305,6 +324,31 @@ func fetchTimeEntriesByTask(ctx context.Context, c *clickup.Client, teamID, list
 		grouped[taskID] = append(grouped[taskID], entry)
 	}
 	return grouped, nil
+}
+
+// fetchListMemberIDs returns every member of a list as a single
+// comma-separated string of user IDs, suitable for TimeEntryFilters.Assignee
+// — the time-entries endpoint accepts a comma-separated list there. Member
+// IDs come back from ClickUp as JSON numbers, not strings (unlike task/list
+// IDs elsewhere in this API), so they're reformatted rather than type-asserted.
+func fetchListMemberIDs(ctx context.Context, c *clickup.Client, listID string) (string, error) {
+	raw, err := c.ListListMembers(ctx, listID)
+	if err != nil {
+		return "", err
+	}
+	m, _ := raw.(map[string]any)
+	membersRaw, _ := m["members"].([]any)
+	ids := make([]string, 0, len(membersRaw))
+	for _, mem := range membersRaw {
+		mm, ok := mem.(map[string]any)
+		if !ok {
+			continue
+		}
+		if id, ok := mm["id"].(float64); ok {
+			ids = append(ids, strconv.FormatInt(int64(id), 10))
+		}
+	}
+	return strings.Join(ids, ","), nil
 }
 
 // fetchUserTimeEntries fetches every time entry a user logged in a date

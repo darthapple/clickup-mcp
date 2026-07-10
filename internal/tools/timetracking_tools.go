@@ -26,7 +26,11 @@ func RegisterTimeTrackingTools(s *server.MCPServer, c *clickup.Client) {
 			mcp.WithString("team_id", mcp.Description("Workspace ID; defaults to CLICKUP_TEAM_ID")),
 			mcp.WithNumber("start_date", mcp.Description("Filter: range start, Unix ms timestamp (UTC). Omitting this (along with end_date) restricts results to the last 30 days.")),
 			mcp.WithNumber("end_date", mcp.Description("Filter: range end, Unix ms timestamp (UTC)")),
-			mcp.WithString("assignee", mcp.Description("Filter by assignee user ID. Omitting this restricts results to the authenticated token's own user.")),
+			mcp.WithString("assignee", mcp.Description("Filter by assignee user ID. Accepts multiple user IDs as a single comma-separated "+
+				"string (e.g. \"170440755,87915023,118082738\") to fetch several users' entries in one call — "+
+				"this is the only way to get a complete multi-user report, since looping per-user is easy to "+
+				"forget and this param is not an array. Omitting this restricts results to the authenticated "+
+				"token's own user.")),
 			mcp.WithString("space_id", mcp.Description("Filter by space ID")),
 			mcp.WithString("folder_id", mcp.Description("Filter by folder ID")),
 			mcp.WithString("list_id", mcp.Description("Filter by list ID")),
