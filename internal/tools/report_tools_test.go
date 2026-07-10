@@ -3,6 +3,7 @@ package tools
 import (
 	"encoding/json"
 	"net/http"
+	"net/url"
 	"testing"
 
 	"github.com/mark3labs/mcp-go/server"
@@ -307,6 +308,96 @@ func TestClickupGetUserTimeReport(t *testing.T) {
 		})
 		if !res.IsError {
 			t.Fatal("IsError = false, want true")
+		}
+	})
+
+	t.Run("multi-user comma-separated user_id and space_id are wired through, and each entry carries its own logging user", func(t *testing.T) {
+		var gotQuery url.Values
+		c, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+			switch r.URL.Path {
+			case "/team/999/time_entries":
+				gotQuery = r.URL.Query()
+				_, _ = w.Write([]byte(`{
+					"data": [
+						{"id": "e1", "task": {"id": "task1", "name": "Task One"}, "task_location": {"list_id": "list1", "folder_id": "folder1"}, "user": {"id": 111, "username": "alice"}, "start": "1000", "end": "11000", "duration": "10000", "description": "a"},
+						{"id": "e2", "task": {"id": "task1", "name": "Task One"}, "task_location": {"list_id": "list1", "folder_id": "folder1"}, "user": {"id": 222, "username": "bob"}, "start": "20000", "end": "25000", "duration": "5000", "description": "b"}
+					]
+				}`))
+			case "/list/list1":
+				_, _ = w.Write([]byte(`{"name": "List One", "folder": {"name": "Folder One"}, "space": {"id": "space1", "name": "Space One"}}`))
+			default:
+				t.Errorf("unexpected request path: %s", r.URL.Path)
+				w.WriteHeader(http.StatusNotFound)
+			}
+		})
+		s := server.NewMCPServer("test", "1.0.0")
+		RegisterReportTools(s, c)
+
+		res := callTool(t, s, "clickup_get_user_time_report", map[string]any{
+			"user_id":    "111,222",
+			"space_id":   "space1",
+			"start_date": "1970-01-01 00:00:00", "end_date": "1970-01-01 00:01:40",
+		})
+		if res.IsError {
+			t.Fatalf("IsError = true, want false; text = %q", textOf(t, res))
+		}
+
+		if got := gotQuery.Get("assignee"); got != "111,222" {
+			t.Errorf("assignee query param = %q, want %q", got, "111,222")
+		}
+		if got := gotQuery.Get("space_id"); got != "space1" {
+			t.Errorf("space_id query param = %q, want %q", got, "space1")
+		}
+
+		var out map[string]any
+		if err := json.Unmarshal([]byte(textOf(t, res)), &out); err != nil {
+			t.Fatalf("decoding result: %v", err)
+		}
+		if out["space_id"] != "space1" {
+			t.Errorf("response space_id = %v, want space1", out["space_id"])
+		}
+
+		entries, ok := out["entries"].([]any)
+		if !ok || len(entries) != 2 {
+			t.Fatalf("entries = %v, want 2", out["entries"])
+		}
+		byID := map[string]map[string]any{}
+		for _, e := range entries {
+			em := e.(map[string]any)
+			byID[em["id"].(string)] = em
+		}
+		if byID["e1"]["user_id"] != "111" || byID["e1"]["user_name"] != "alice" {
+			t.Errorf("e1 user = %+v, want user_id=111 user_name=alice", byID["e1"])
+		}
+		if byID["e2"]["user_id"] != "222" || byID["e2"]["user_name"] != "bob" {
+			t.Errorf("e2 user = %+v, want user_id=222 user_name=bob", byID["e2"])
+		}
+
+		// by_task aggregates across both requested users combined, per the
+		// tool's documented multi-user semantics.
+		byTask, ok := out["by_task"].([]any)
+		if !ok || len(byTask) != 1 {
+			t.Fatalf("by_task = %v, want 1 task", out["by_task"])
+		}
+		task1 := byTask[0].(map[string]any)
+		if task1["duration_ms"] != float64(15000) {
+			t.Errorf("task1 combined duration_ms = %v, want 15000 (10000+5000 across both users)", task1["duration_ms"])
+		}
+	})
+
+	t.Run("entryUser degrades to empty strings when the user object is missing or malformed", func(t *testing.T) {
+		cases := []map[string]any{
+			{},
+			{"user": nil},
+			{"user": "not-an-object"},
+			{"user": map[string]any{}},
+			{"user": map[string]any{"id": "not-a-number", "username": 42}},
+		}
+		for _, em := range cases {
+			id, name := entryUser(em)
+			if id != "" || name != "" {
+				t.Errorf("entryUser(%+v) = (%q, %q), want (\"\", \"\")", em, id, name)
+			}
 		}
 	})
 }

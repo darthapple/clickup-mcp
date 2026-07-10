@@ -131,26 +131,37 @@ func RegisterReportTools(s *server.MCPServer, c *clickup.Client) {
 
 	s.AddTool(
 		mcp.NewTool("clickup_get_user_time_report",
-			mcp.WithDescription("Return a timesheet for a ClickUp user: every time entry they logged "+
-				"in a date range, across all spaces/lists/tasks, with each entry's space, folder, "+
-				"list, and task name resolved. Includes a per-task rollup and a grand total. "+
-				"Response shape: {user_id, start_date, end_date, entries: [{space_id, "+
-				"space_name, folder_id, folder_name, list_id, list_name, task_id, task_name, "+
-				"id, start, end, duration_ms, duration_formatted, description}], by_task: "+
-				"[{task_id, task_name, list_name, folder_name, space_name, duration_ms, "+
-				"duration_formatted}], total_duration_ms, total_duration_formatted}. If a "+
-				"list's name can't be resolved (e.g. deleted since the entry was logged), its "+
-				"space_name/folder_name/list_name come back as empty strings rather than "+
-				"failing the whole report — an empty name means \"lookup failed\", not "+
-				"\"no folder\". Duration is reported as both raw milliseconds and a "+
-				"zero-padded \"DD:HH:MM:SS\" string (days:hours:minutes:seconds). All "+
-				"timestamps (start_date, end_date, start, end) are human-readable UTC "+
-				"datetime strings (\"YYYY-MM-DD HH:MM:SS\") — this applies to start_date/"+
-				"end_date here even though those same field names render as a bare date "+
-				"elsewhere (e.g. a task's own due_date/start_date), since here they're the "+
-				"query range boundary, not a calendar-date field."),
+			mcp.WithDescription("Return a timesheet for one or more ClickUp users: every time "+
+				"entry they logged in a date range, across all spaces/lists/tasks (or "+
+				"restricted to one space via space_id), with each entry's space, folder, "+
+				"list, task, and logging-user name resolved. Includes a per-task rollup and "+
+				"a grand total. user_id accepts a single ID or a comma-separated list (e.g. "+
+				"\"170440755,87915023\") to cover multiple people in one call — a task "+
+				"worked on by several people this way is not silently attributed to only "+
+				"one of them, since each entry still carries its own user_id/user_name. "+
+				"IMPORTANT: when multiple users are requested, by_task and "+
+				"total_duration_ms/total_duration_formatted aggregate across ALL requested "+
+				"users combined, not broken down per person — group entries yourself by "+
+				"user_id if you need a per-analyst total. Response shape: {user_id, "+
+				"space_id, start_date, end_date, entries: [{space_id, space_name, "+
+				"folder_id, folder_name, list_id, list_name, task_id, task_name, id, "+
+				"user_id, user_name, start, end, duration_ms, duration_formatted, "+
+				"description}], by_task: [{task_id, task_name, list_name, folder_name, "+
+				"space_name, duration_ms, duration_formatted}], total_duration_ms, "+
+				"total_duration_formatted}. If a list's name can't be resolved (e.g. "+
+				"deleted since the entry was logged), its space_name/folder_name/list_name "+
+				"come back as empty strings rather than failing the whole report — an "+
+				"empty name means \"lookup failed\", not \"no folder\". Duration is "+
+				"reported as both raw milliseconds and a zero-padded \"DD:HH:MM:SS\" "+
+				"string (days:hours:minutes:seconds). All timestamps (start_date, "+
+				"end_date, start, end) are human-readable UTC datetime strings "+
+				"(\"YYYY-MM-DD HH:MM:SS\") — this applies to start_date/end_date here "+
+				"even though those same field names render as a bare date elsewhere (e.g. "+
+				"a task's own due_date/start_date), since here they're the query range "+
+				"boundary, not a calendar-date field."),
 			mcp.WithString("team_id", mcp.Description("Workspace ID; defaults to CLICKUP_TEAM_ID")),
-			mcp.WithString("user_id", mcp.Required(), mcp.Description("ClickUp user ID (assignee) to report on")),
+			mcp.WithString("user_id", mcp.Required(), mcp.Description("ClickUp user ID (assignee) to report on. Accepts multiple user IDs as a single comma-separated string (e.g. \"170440755,87915023\") to cover several people in one call.")),
+			mcp.WithString("space_id", mcp.Description("Optional: restrict to time entries within this space only. Omit for a full cross-workspace timesheet.")),
 			mcp.WithString("start_date", mcp.Required(), mcp.Description("Range start, UTC \"YYYY-MM-DD HH:MM:SS\" or bare \"YYYY-MM-DD\" (midnight UTC)")),
 			mcp.WithString("end_date", mcp.Required(), mcp.Description("Range end, UTC \"YYYY-MM-DD HH:MM:SS\" or bare \"YYYY-MM-DD\" (midnight UTC)")),
 		),
@@ -159,6 +170,7 @@ func RegisterReportTools(s *server.MCPServer, c *clickup.Client) {
 			if err != nil {
 				return ErrorResult(err)
 			}
+			spaceID := req.GetString("space_id", "")
 			start, err := requireDateTimeArg(req, "start_date")
 			if err != nil {
 				return ErrorResult(err)
@@ -169,7 +181,7 @@ func RegisterReportTools(s *server.MCPServer, c *clickup.Client) {
 			}
 			teamID := teamIDOrDefault(req, c)
 
-			rawEntries, err := fetchUserTimeEntries(ctx, c, teamID, userID, start, end)
+			rawEntries, err := fetchUserTimeEntries(ctx, c, teamID, userID, spaceID, start, end)
 			if err != nil {
 				return ErrorResult(err)
 			}
@@ -194,6 +206,7 @@ func RegisterReportTools(s *server.MCPServer, c *clickup.Client) {
 				dur := parseMsField(em, "duration")
 				id, _ := em["id"].(string)
 				desc, _ := em["description"].(string)
+				entryUserID, entryUserName := entryUser(em)
 
 				entries = append(entries, map[string]any{
 					"space_id":           info.spaceID,
@@ -205,6 +218,8 @@ func RegisterReportTools(s *server.MCPServer, c *clickup.Client) {
 					"task_id":            taskID,
 					"task_name":          taskName,
 					"id":                 id,
+					"user_id":            entryUserID,
+					"user_name":          entryUserName,
 					"start":              parseMsField(em, "start"),
 					"end":                parseMsField(em, "end"),
 					"duration_ms":        dur,
@@ -236,6 +251,7 @@ func RegisterReportTools(s *server.MCPServer, c *clickup.Client) {
 
 			return JSONResult(map[string]any{
 				"user_id":                  userID,
+				"space_id":                 spaceID,
 				"start_date":               start,
 				"end_date":                 end,
 				"entries":                  entries,
@@ -355,10 +371,13 @@ func fetchListMemberIDs(ctx context.Context, c *clickup.Client, listID string) (
 	return strings.Join(ids, ","), nil
 }
 
-// fetchUserTimeEntries fetches every time entry a user logged in a date
-// range, across the whole workspace (no list/task scoping).
-func fetchUserTimeEntries(ctx context.Context, c *clickup.Client, teamID, userID string, start, end int64) ([]map[string]any, error) {
-	raw, err := c.ListTimeEntries(ctx, teamID, clickup.TimeEntryFilters{Assignee: userID, StartDate: &start, EndDate: &end})
+// fetchUserTimeEntries fetches every time entry logged by userID (a single
+// ID, or ClickUp's accepted comma-separated list of IDs for a multi-user
+// report) in a date range, optionally restricted to one space via spaceID
+// (empty string means no space restriction — the full cross-workspace
+// timesheet).
+func fetchUserTimeEntries(ctx context.Context, c *clickup.Client, teamID, userID, spaceID string, start, end int64) ([]map[string]any, error) {
+	raw, err := c.ListTimeEntries(ctx, teamID, clickup.TimeEntryFilters{Assignee: userID, SpaceID: spaceID, StartDate: &start, EndDate: &end})
 	if err != nil {
 		return nil, fmt.Errorf("fetching time entries for user %s: %w", userID, err)
 	}
@@ -371,6 +390,23 @@ func fetchUserTimeEntries(ctx context.Context, c *clickup.Client, teamID, userID
 		}
 	}
 	return out, nil
+}
+
+// entryUser extracts the id/username of whoever logged a raw time entry,
+// from its embedded "user" object. Like list-member IDs (fetchListMemberIDs
+// above), ClickUp returns this id as a JSON number, not a string. Missing or
+// malformed data degrades to an empty string rather than failing the whole
+// report, consistent with this file's other display-enrichment lookups.
+func entryUser(em map[string]any) (id, name string) {
+	userObj, _ := em["user"].(map[string]any)
+	if userObj == nil {
+		return "", ""
+	}
+	if idNum, ok := userObj["id"].(float64); ok {
+		id = strconv.FormatInt(int64(idNum), 10)
+	}
+	name, _ = userObj["username"].(string)
+	return id, name
 }
 
 // listInfo is the display metadata resolved for a list ID: its own name plus
