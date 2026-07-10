@@ -9,6 +9,14 @@ import (
 	"clickup-mcp/internal/clickup"
 )
 
+// commentPaginationCaveat documents that the comment-listing endpoints in
+// this file call ClickUp with no start/start_id pagination params, so only
+// the most recent page (ClickUp's server-side default limit) is ever
+// reachable — on a task/list/view with more comments than that, older ones
+// are permanently unreachable through this tool with no signal that any
+// were left out.
+const commentPaginationCaveat = " Returns only the most recent page of comments (ClickUp's server-side default page limit); older comments beyond that cannot be retrieved through this tool since start/start_id pagination isn't exposed."
+
 func buildCommentBody(req mcp.CallToolRequest) (map[string]any, error) {
 	commentText, err := req.RequireString("comment_text")
 	if err != nil {
@@ -29,8 +37,8 @@ func RegisterCommentTools(s *server.MCPServer, c *clickup.Client) {
 
 	s.AddTool(
 		mcp.NewTool("clickup_list_task_comments",
-			mcp.WithDescription("List comments on a ClickUp task."),
-			mcp.WithString("task_id", mcp.Required(), mcp.Description("Task ID")),
+			mcp.WithDescription("List comments on a ClickUp task."+commentPaginationCaveat),
+			mcp.WithString("task_id", mcp.Required(), mcp.Description("Task ID"+taskIDCaveat)),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			taskID, err := req.RequireString("task_id")
@@ -49,7 +57,7 @@ func RegisterCommentTools(s *server.MCPServer, c *clickup.Client) {
 		mcp.NewTool("clickup_create_task_comment",
 			append([]mcp.ToolOption{
 				mcp.WithDescription("Add a comment to a ClickUp task."),
-				mcp.WithString("task_id", mcp.Required(), mcp.Description("Task ID")),
+				mcp.WithString("task_id", mcp.Required(), mcp.Description("Task ID"+taskIDCaveat)),
 			}, commentBodyOptions...)...,
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -71,7 +79,7 @@ func RegisterCommentTools(s *server.MCPServer, c *clickup.Client) {
 
 	s.AddTool(
 		mcp.NewTool("clickup_list_list_comments",
-			mcp.WithDescription("List comments on a ClickUp list."),
+			mcp.WithDescription("List comments on a ClickUp list."+commentPaginationCaveat),
 			mcp.WithString("list_id", mcp.Required(), mcp.Description("List ID")),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -113,7 +121,7 @@ func RegisterCommentTools(s *server.MCPServer, c *clickup.Client) {
 
 	s.AddTool(
 		mcp.NewTool("clickup_list_view_comments",
-			mcp.WithDescription("List comments on a ClickUp view."),
+			mcp.WithDescription("List comments on a ClickUp view."+commentPaginationCaveat),
 			mcp.WithString("view_id", mcp.Required(), mcp.Description("View ID")),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -197,7 +205,7 @@ func RegisterCommentTools(s *server.MCPServer, c *clickup.Client) {
 
 	s.AddTool(
 		mcp.NewTool("clickup_list_comment_replies",
-			mcp.WithDescription("List threaded replies on a ClickUp comment."),
+			mcp.WithDescription("List threaded replies on a ClickUp comment."+commentPaginationCaveat),
 			mcp.WithString("comment_id", mcp.Required(), mcp.Description("Comment ID")),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {

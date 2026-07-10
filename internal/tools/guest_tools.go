@@ -15,12 +15,18 @@ func buildGuestPermissionBody(req mcp.CallToolRequest) map[string]any {
 	return body
 }
 
-var guestPermissionOption = mcp.WithNumber("permission_level", mcp.Description("1=read, 2=comment, 3=edit, 4=create"))
+var guestPermissionOption = mcp.WithNumber("permission_level", mcp.Description("1=read, 2=comment, 3=edit, 4=create. If omitted, ClickUp applies its own default permission level for this guest — pass explicitly to guarantee the access level."))
+
+// guestEnterpriseNote documents that every guest-management endpoint is
+// gated to Enterprise-plan workspaces at the API level, confirmed against
+// ClickUp's plan-availability reference (independent of whatever the web UI
+// allows) — same phrasing as auditlog_tools.go's equivalent gate.
+const guestEnterpriseNote = " Enterprise plan only; non-Enterprise workspaces get an expected 4xx error."
 
 func RegisterGuestTools(s *server.MCPServer, c *clickup.Client) {
 	s.AddTool(
 		mcp.NewTool("clickup_invite_guest",
-			mcp.WithDescription("Invite a guest to a ClickUp workspace."),
+			mcp.WithDescription("Invite a guest to a ClickUp workspace."+guestEnterpriseNote),
 			mcp.WithString("team_id", mcp.Description("Workspace ID; defaults to CLICKUP_TEAM_ID")),
 			mcp.WithString("email", mcp.Required(), mcp.Description("Guest email address")),
 			mcp.WithBoolean("can_edit_tags", mcp.Description("Allow the guest to edit tags")),
@@ -48,7 +54,9 @@ func RegisterGuestTools(s *server.MCPServer, c *clickup.Client) {
 
 	s.AddTool(
 		mcp.NewTool("clickup_get_guest",
-			mcp.WithDescription("Get a single ClickUp guest by ID."),
+			mcp.WithDescription("Get a single ClickUp guest by ID."+guestEnterpriseNote+" guest_id is only "+
+				"obtainable from clickup_invite_guest's response — there is no tool to "+
+				"list or search existing guests."),
 			mcp.WithString("team_id", mcp.Description("Workspace ID; defaults to CLICKUP_TEAM_ID")),
 			mcp.WithString("guest_id", mcp.Required(), mcp.Description("Guest ID")),
 		),
@@ -67,7 +75,7 @@ func RegisterGuestTools(s *server.MCPServer, c *clickup.Client) {
 
 	s.AddTool(
 		mcp.NewTool("clickup_update_guest",
-			mcp.WithDescription("Update a ClickUp guest's workspace-wide permissions."),
+			mcp.WithDescription("Update a ClickUp guest's workspace-wide permissions."+guestEnterpriseNote),
 			mcp.WithString("team_id", mcp.Description("Workspace ID; defaults to CLICKUP_TEAM_ID")),
 			mcp.WithString("guest_id", mcp.Required(), mcp.Description("Guest ID")),
 			mcp.WithBoolean("can_edit_tags", mcp.Description("Allow the guest to edit tags")),
@@ -95,7 +103,7 @@ func RegisterGuestTools(s *server.MCPServer, c *clickup.Client) {
 
 	s.AddTool(
 		mcp.NewTool("clickup_remove_guest_from_workspace",
-			mcp.WithDescription("Remove a guest from a ClickUp workspace entirely."),
+			mcp.WithDescription("Remove a guest from a ClickUp workspace entirely."+guestEnterpriseNote),
 			mcp.WithString("team_id", mcp.Description("Workspace ID; defaults to CLICKUP_TEAM_ID")),
 			mcp.WithString("guest_id", mcp.Required(), mcp.Description("Guest ID")),
 		),
@@ -150,7 +158,7 @@ func registerGuestScope(
 
 	s.AddTool(
 		mcp.NewTool("clickup_add_guest_to_"+scopeParam,
-			mcp.WithDescription("Share a ClickUp "+scopeParam+" with a guest."),
+			mcp.WithDescription("Share a ClickUp "+scopeParam+" with a guest."+guestEnterpriseNote),
 			mcp.WithString(idParam, mcp.Required(), mcp.Description(scopeLabel+" ID")),
 			mcp.WithString("guest_id", mcp.Required(), mcp.Description("Guest ID")),
 			guestPermissionOption,
@@ -174,7 +182,7 @@ func registerGuestScope(
 
 	s.AddTool(
 		mcp.NewTool("clickup_remove_guest_from_"+scopeParam,
-			mcp.WithDescription("Revoke a guest's access to a ClickUp "+scopeParam+"."),
+			mcp.WithDescription("Revoke a guest's access to a ClickUp "+scopeParam+"."+guestEnterpriseNote),
 			mcp.WithString(idParam, mcp.Required(), mcp.Description(scopeLabel+" ID")),
 			mcp.WithString("guest_id", mcp.Required(), mcp.Description("Guest ID")),
 		),

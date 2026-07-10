@@ -13,7 +13,7 @@ func RegisterChecklistTools(s *server.MCPServer, c *clickup.Client) {
 	s.AddTool(
 		mcp.NewTool("clickup_create_checklist",
 			mcp.WithDescription("Create a checklist on a ClickUp task."),
-			mcp.WithString("task_id", mcp.Required(), mcp.Description("Task ID")),
+			mcp.WithString("task_id", mcp.Required(), mcp.Description("Task ID"+taskIDCaveat)),
 			mcp.WithString("name", mcp.Required(), mcp.Description("Checklist name")),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {

@@ -41,30 +41,32 @@ func RegisterReportTools(s *server.MCPServer, c *clickup.Client) {
 				"duration_ms 0 and an empty entries array. Each task's duration is reported as "+
 				"both raw milliseconds and a zero-padded \"DD:HH:MM:SS\" string "+
 				"(days:hours:minutes:seconds); entries within a task carry the same two "+
-				"forms. All timestamps (start_date, end_date, start, end) are Unix epoch "+
-				"milliseconds in UTC. Known limitation: the underlying time-entries endpoint "+
-				"has no documented pagination, so an extremely high-volume list over a long "+
-				"range could theoretically be capped by ClickUp server-side — not yet "+
-				"observed, but not provably ruled out."),
+				"forms. All timestamps (start_date, end_date, start, end) are human-readable "+
+				"UTC datetime strings (\"YYYY-MM-DD HH:MM:SS\") — this applies to start_date/"+
+				"end_date here even though those same field names render as a bare date "+
+				"elsewhere (e.g. a task's own due_date/start_date), since here they're the "+
+				"query range boundary, not a calendar-date field. Known limitation: the "+
+				"underlying time-entries endpoint has no documented pagination, so an "+
+				"extremely high-volume list over a long range could theoretically be capped "+
+				"by ClickUp server-side — not yet observed, but not provably ruled out."),
 			mcp.WithString("team_id", mcp.Description("Workspace ID; defaults to CLICKUP_TEAM_ID")),
 			mcp.WithString("list_id", mcp.Required(), mcp.Description("List ID to report on")),
-			mcp.WithNumber("start_date", mcp.Required(), mcp.Description("Range start, Unix ms timestamp (UTC)")),
-			mcp.WithNumber("end_date", mcp.Required(), mcp.Description("Range end, Unix ms timestamp (UTC)")),
+			mcp.WithString("start_date", mcp.Required(), mcp.Description("Range start, UTC \"YYYY-MM-DD HH:MM:SS\" or bare \"YYYY-MM-DD\" (midnight UTC)")),
+			mcp.WithString("end_date", mcp.Required(), mcp.Description("Range end, UTC \"YYYY-MM-DD HH:MM:SS\" or bare \"YYYY-MM-DD\" (midnight UTC)")),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			listID, err := req.RequireString("list_id")
 			if err != nil {
 				return ErrorResult(err)
 			}
-			startF, err := req.RequireFloat("start_date")
+			start, err := requireDateTimeArg(req, "start_date")
 			if err != nil {
 				return ErrorResult(err)
 			}
-			endF, err := req.RequireFloat("end_date")
+			end, err := requireDateTimeArg(req, "end_date")
 			if err != nil {
 				return ErrorResult(err)
 			}
-			start, end := int64(startF), int64(endF)
 			teamID := teamIDOrDefault(req, c)
 
 			tasks, err := fetchAllTasksInList(ctx, c, listID)
@@ -123,7 +125,7 @@ func RegisterReportTools(s *server.MCPServer, c *clickup.Client) {
 				"total_duration_ms":        totalMs,
 				"total_duration_formatted": formatDuration(totalMs),
 				"unmatched_entries":        unmatched,
-			})
+			}, "start_date")
 		},
 	)
 
@@ -142,27 +144,29 @@ func RegisterReportTools(s *server.MCPServer, c *clickup.Client) {
 				"failing the whole report — an empty name means \"lookup failed\", not "+
 				"\"no folder\". Duration is reported as both raw milliseconds and a "+
 				"zero-padded \"DD:HH:MM:SS\" string (days:hours:minutes:seconds). All "+
-				"timestamps (start_date, end_date, start, end) are Unix epoch milliseconds "+
-				"in UTC."),
+				"timestamps (start_date, end_date, start, end) are human-readable UTC "+
+				"datetime strings (\"YYYY-MM-DD HH:MM:SS\") — this applies to start_date/"+
+				"end_date here even though those same field names render as a bare date "+
+				"elsewhere (e.g. a task's own due_date/start_date), since here they're the "+
+				"query range boundary, not a calendar-date field."),
 			mcp.WithString("team_id", mcp.Description("Workspace ID; defaults to CLICKUP_TEAM_ID")),
 			mcp.WithString("user_id", mcp.Required(), mcp.Description("ClickUp user ID (assignee) to report on")),
-			mcp.WithNumber("start_date", mcp.Required(), mcp.Description("Range start, Unix ms timestamp (UTC)")),
-			mcp.WithNumber("end_date", mcp.Required(), mcp.Description("Range end, Unix ms timestamp (UTC)")),
+			mcp.WithString("start_date", mcp.Required(), mcp.Description("Range start, UTC \"YYYY-MM-DD HH:MM:SS\" or bare \"YYYY-MM-DD\" (midnight UTC)")),
+			mcp.WithString("end_date", mcp.Required(), mcp.Description("Range end, UTC \"YYYY-MM-DD HH:MM:SS\" or bare \"YYYY-MM-DD\" (midnight UTC)")),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			userID, err := req.RequireString("user_id")
 			if err != nil {
 				return ErrorResult(err)
 			}
-			startF, err := req.RequireFloat("start_date")
+			start, err := requireDateTimeArg(req, "start_date")
 			if err != nil {
 				return ErrorResult(err)
 			}
-			endF, err := req.RequireFloat("end_date")
+			end, err := requireDateTimeArg(req, "end_date")
 			if err != nil {
 				return ErrorResult(err)
 			}
-			start, end := int64(startF), int64(endF)
 			teamID := teamIDOrDefault(req, c)
 
 			rawEntries, err := fetchUserTimeEntries(ctx, c, teamID, userID, start, end)
@@ -238,7 +242,7 @@ func RegisterReportTools(s *server.MCPServer, c *clickup.Client) {
 				"by_task":                  byTaskOut,
 				"total_duration_ms":        totalMs,
 				"total_duration_formatted": formatDuration(totalMs),
-			})
+			}, "start_date")
 		},
 	)
 }

@@ -26,7 +26,9 @@ func RegisterChatTools(s *server.MCPServer, c *clickup.Client) {
 
 	s.AddTool(
 		mcp.NewTool("clickup_create_chat_channel",
-			mcp.WithDescription("Create a chat channel in a ClickUp workspace."),
+			mcp.WithDescription("Create a chat channel in a ClickUp workspace. Channels are PUBLIC "+
+				"— visible and joinable by the whole workspace — by default; this tool does not "+
+				"support setting a private visibility or an initial member list."),
 			mcp.WithString("team_id", mcp.Description("Workspace ID; defaults to CLICKUP_TEAM_ID")),
 			mcp.WithString("name", mcp.Required(), mcp.Description("Channel name")),
 			mcp.WithString("description", mcp.Description("Channel description")),
@@ -117,18 +119,20 @@ func RegisterChatTools(s *server.MCPServer, c *clickup.Client) {
 			mcp.WithDescription("Post a message to a ClickUp chat channel."),
 			mcp.WithString("team_id", mcp.Description("Workspace ID; defaults to CLICKUP_TEAM_ID")),
 			mcp.WithString("channel_id", mcp.Required(), mcp.Description("Channel ID")),
-			mcp.WithString("text", mcp.Required(), mcp.Description("Message text")),
+			mcp.WithString("content", mcp.Required(), mcp.Description("Message content")),
+			mcp.WithString("type", mcp.Description(`Message type: "message" (default) or "post"`)),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			channelID, err := req.RequireString("channel_id")
 			if err != nil {
 				return ErrorResult(err)
 			}
-			text, err := req.RequireString("text")
+			content, err := req.RequireString("content")
 			if err != nil {
 				return ErrorResult(err)
 			}
-			out, err := c.CreateChatMessage(ctx, teamIDOrDefault(req, c), channelID, map[string]any{"text": text})
+			body := map[string]any{"content": content, "type": req.GetString("type", "message")}
+			out, err := c.CreateChatMessage(ctx, teamIDOrDefault(req, c), channelID, body)
 			if err != nil {
 				return ErrorResult(err)
 			}
@@ -141,18 +145,18 @@ func RegisterChatTools(s *server.MCPServer, c *clickup.Client) {
 			mcp.WithDescription("Edit a ClickUp chat message."),
 			mcp.WithString("team_id", mcp.Description("Workspace ID; defaults to CLICKUP_TEAM_ID")),
 			mcp.WithString("message_id", mcp.Required(), mcp.Description("Message ID")),
-			mcp.WithString("text", mcp.Required(), mcp.Description("New message text")),
+			mcp.WithString("content", mcp.Required(), mcp.Description("New message content")),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			messageID, err := req.RequireString("message_id")
 			if err != nil {
 				return ErrorResult(err)
 			}
-			text, err := req.RequireString("text")
+			content, err := req.RequireString("content")
 			if err != nil {
 				return ErrorResult(err)
 			}
-			out, err := c.UpdateChatMessage(ctx, teamIDOrDefault(req, c), messageID, map[string]any{"text": text})
+			out, err := c.UpdateChatMessage(ctx, teamIDOrDefault(req, c), messageID, map[string]any{"content": content})
 			if err != nil {
 				return ErrorResult(err)
 			}

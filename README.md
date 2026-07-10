@@ -9,6 +9,47 @@ A local MCP server (stdio transport) exposing the ClickUp REST API v2 (plus
 the v3 Chat and Docs APIs) as MCP tools, built on
 [`mark3labs/mcp-go`](https://github.com/mark3labs/mcp-go).
 
+## Known behavior notes for callers
+
+Every tool's full behavior is documented in its own `description` field
+(and each parameter's own `description`) — that's the source of truth an
+MCP client/agent actually sees. The items below are cross-cutting patterns
+worth knowing before you start, since they each affect several tools at
+once and are easy to miss by reading one tool's schema in isolation:
+
+- **Dates/times are plain UTC strings**, not epoch milliseconds:
+  `"YYYY-MM-DD HH:MM:SS"` for a precise moment, or bare `"YYYY-MM-DD"`
+  where only a calendar date applies (`due_date`/`start_date`). Duration
+  fields (`duration`, `duration_ms`) are the one exception and stay in
+  milliseconds, since they're an elapsed length, not a point in time.
+- **Custom task IDs (`"CT-123"`-style) only work with `clickup_get_task`.**
+  Every other task-scoped tool (update, delete, comments, checklists,
+  custom fields, dependencies, links, list membership) only accepts
+  ClickUp's internal task ID and 404s on a custom one with no hint why —
+  resolve it via `clickup_get_task` first.
+- **`clickup_update_doc_page` defaults `content_edit_mode` to `"replace"`**
+  when omitted, silently overwriting the entire page instead of appending.
+  Always pass `content_edit_mode` explicitly when adding to existing
+  content.
+- **Several tools silently scope down when a filter is omitted**, not
+  error: `clickup_list_time_entries` defaults to the last 30 days AND the
+  calling token's own user; for a complete or aggregated view use
+  `clickup_get_list_time_report`/`clickup_get_user_time_report` instead of
+  assembling one by hand.
+- **Some list-style tools cap out at one server-side page** with no
+  signal more data exists beyond it: the comment-listing tools
+  (`clickup_list_task_comments` and friends) and `clickup_search_docs`
+  (50-doc cap). `clickup_list_tasks`/`clickup_search_tasks`/
+  `clickup_get_view_tasks` do support pagination, but one page per call —
+  the caller must re-call with an incrementing `page` itself.
+- **Guest management and workspace-user-admin tools are Enterprise-plan
+  only** at the ClickUp API level (invite/update/remove workspace user,
+  all guest invite/permission tools) — non-Enterprise workspaces get an
+  expected 4xx, independent of what the ClickUp web UI otherwise allows.
+- **Template IDs (`template_id`, used by the `clickup_create_*_from_template`
+  tools) can't be discovered through this server** — there's no
+  template-listing tool; find the ID in the ClickUp web app first.
+
 ## Environment variables
 
 Required:

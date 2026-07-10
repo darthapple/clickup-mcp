@@ -255,7 +255,7 @@ func TestClickupChatMessagesCRUD(t *testing.T) {
 		}
 	})
 
-	t.Run("create requires text", func(t *testing.T) {
+	t.Run("create requires content", func(t *testing.T) {
 		hit := false
 		c, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) { hit = true })
 		s := server.NewMCPServer("test", "1.0.0")
@@ -281,7 +281,7 @@ func TestClickupChatMessagesCRUD(t *testing.T) {
 		s := server.NewMCPServer("test", "1.0.0")
 		RegisterChatTools(s, c)
 		res := callTool(t, s, "clickup_create_chat_message", map[string]any{
-			"team_id": "123", "channel_id": "c1", "text": "hello",
+			"team_id": "123", "channel_id": "c1", "content": "hello",
 		})
 		if res.IsError {
 			t.Fatalf("IsError = true, want false: %s", textOf(t, res))
@@ -292,12 +292,15 @@ func TestClickupChatMessagesCRUD(t *testing.T) {
 		if gotPath != "/workspaces/123/chat/channels/c1/messages" {
 			t.Errorf("path = %q, want /workspaces/123/chat/channels/c1/messages", gotPath)
 		}
-		if gotBody["text"] != "hello" {
+		if gotBody["content"] != "hello" {
 			t.Errorf("body = %+v", gotBody)
+		}
+		if gotBody["type"] != "message" {
+			t.Errorf("body[type] = %v, want default \"message\"", gotBody["type"])
 		}
 	})
 
-	t.Run("update requires message_id and text", func(t *testing.T) {
+	t.Run("update requires message_id and content", func(t *testing.T) {
 		hit := false
 		c, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) { hit = true })
 		s := server.NewMCPServer("test", "1.0.0")
@@ -323,7 +326,7 @@ func TestClickupChatMessagesCRUD(t *testing.T) {
 		s := server.NewMCPServer("test", "1.0.0")
 		RegisterChatTools(s, c)
 		res := callTool(t, s, "clickup_update_chat_message", map[string]any{
-			"team_id": "123", "message_id": "m1", "text": "edited",
+			"team_id": "123", "message_id": "m1", "content": "edited",
 		})
 		if res.IsError {
 			t.Fatalf("IsError = true, want false: %s", textOf(t, res))
@@ -334,8 +337,8 @@ func TestClickupChatMessagesCRUD(t *testing.T) {
 		if gotPath != "/workspaces/123/chat/messages/m1" {
 			t.Errorf("path = %q, want /workspaces/123/chat/messages/m1", gotPath)
 		}
-		if len(gotBody) != 1 || gotBody["text"] != "edited" {
-			t.Errorf("body = %+v, want only text=edited", gotBody)
+		if len(gotBody) != 1 || gotBody["content"] != "edited" {
+			t.Errorf("body = %+v, want only content=edited", gotBody)
 		}
 	})
 
@@ -381,7 +384,7 @@ func TestClickupChatMessagesCRUD(t *testing.T) {
 		})
 		s := server.NewMCPServer("test", "1.0.0")
 		RegisterChatTools(s, c)
-		res := callTool(t, s, "clickup_create_chat_message", map[string]any{"team_id": "123", "channel_id": "c1", "text": "hi"})
+		res := callTool(t, s, "clickup_create_chat_message", map[string]any{"team_id": "123", "channel_id": "c1", "content": "hi"})
 		if !res.IsError {
 			t.Fatal("IsError = false, want true")
 		}

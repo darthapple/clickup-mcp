@@ -50,6 +50,47 @@ func TestClickupGetTask(t *testing.T) {
 		}
 	})
 
+	t.Run("converts raw ClickUp date fields to human-readable UTC in the passthrough response", func(t *testing.T) {
+		// clickup_get_task never touches its response body — it returns the
+		// raw ClickUp JSON as-is. This confirms the generic JSONResult
+		// converter (datetime.go) still rewrites date_created/due_date deep
+		// inside that untouched passthrough, without this tool having any
+		// date-specific code of its own.
+		c, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+			_, _ = w.Write([]byte(`{
+				"id": "task1",
+				"name": "Buy milk",
+				"date_created": "1690000000000",
+				"date_updated": "1700000000000",
+				"due_date": "1783641600000",
+				"start_date": null
+			}`))
+		})
+		s := server.NewMCPServer("test", "1.0.0")
+		RegisterTaskTools(s, c)
+
+		res := callTool(t, s, "clickup_get_task", map[string]any{"task_id": "task1"})
+		if res.IsError {
+			t.Fatalf("IsError = true, want false; text = %q", textOf(t, res))
+		}
+		var out map[string]any
+		if err := json.Unmarshal([]byte(textOf(t, res)), &out); err != nil {
+			t.Fatalf("decoding result: %v", err)
+		}
+		if out["date_created"] != "2023-07-22 04:26:40" {
+			t.Errorf("date_created = %v, want full UTC datetime", out["date_created"])
+		}
+		if out["date_updated"] != "2023-11-14 22:13:20" {
+			t.Errorf("date_updated = %v, want full UTC datetime", out["date_updated"])
+		}
+		if out["due_date"] != "2026-07-10" {
+			t.Errorf("due_date = %v, want bare UTC date", out["due_date"])
+		}
+		if out["start_date"] != nil {
+			t.Errorf("start_date = %v, want nil left untouched", out["start_date"])
+		}
+	})
+
 	t.Run("defaults team_id to configured default", func(t *testing.T) {
 		var gotQuery string
 		c, _ := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
@@ -124,8 +165,8 @@ func TestClickupCreateTask(t *testing.T) {
 			"priority":    float64(2),
 			"assignees":   []any{"u1", "u2"},
 			"tags":        []any{"errand"},
-			"due_date":    float64(1700000000000),
-			"start_date":  float64(1690000000000),
+			"due_date":    "2023-11-14 22:13:20",
+			"start_date":  "2023-07-22 04:26:40",
 			"parent":      "task0",
 		})
 		if res.IsError {

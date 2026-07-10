@@ -9,6 +9,11 @@ import (
 	"clickup-mcp/internal/clickup"
 )
 
+// webhookEventsDescription lists every valid ClickUp webhook event name, so
+// an agent isn't left guessing at names beyond the 2 examples ClickUp's own
+// docs typically lead with.
+const webhookEventsDescription = `Event names: taskCreated, taskUpdated, taskDeleted, taskPriorityUpdated, taskStatusUpdated, taskAssigneeUpdated, taskDueDateUpdated, taskTagUpdated, taskMoved, taskCommentPosted, taskCommentUpdated, taskTimeEstimateUpdated, taskTimeTrackedUpdated, listCreated, listUpdated, listDeleted, folderCreated, folderUpdated, folderDeleted, spaceCreated, spaceUpdated, spaceDeleted, goalCreated, goalUpdated, goalDeleted, keyResultCreated, keyResultUpdated, keyResultDeleted — or ["*"] for all.`
+
 func RegisterWebhookTools(s *server.MCPServer, c *clickup.Client) {
 	s.AddTool(
 		mcp.NewTool("clickup_list_webhooks",
@@ -26,14 +31,17 @@ func RegisterWebhookTools(s *server.MCPServer, c *clickup.Client) {
 
 	s.AddTool(
 		mcp.NewTool("clickup_create_webhook",
-			mcp.WithDescription("Register a webhook on a ClickUp workspace."),
+			mcp.WithDescription("Register a webhook on a ClickUp workspace. Only one of "+
+				"space_id/folder_id/list_id/task_id takes effect — if multiple are "+
+				"given, the most specific (task > list > folder > space) silently "+
+				"wins with no error. If none are given, the webhook is workspace-wide."),
 			mcp.WithString("team_id", mcp.Description("Workspace ID; defaults to CLICKUP_TEAM_ID")),
 			mcp.WithString("endpoint", mcp.Required(), mcp.Description("HTTPS URL to receive webhook events")),
-			mcp.WithArray("events", mcp.Required(), mcp.WithStringItems(), mcp.Description(`Event names, e.g. ["taskCreated","taskUpdated"], or ["*"] for all`)),
-			mcp.WithString("space_id", mcp.Description("Restrict to a space")),
-			mcp.WithString("folder_id", mcp.Description("Restrict to a folder")),
-			mcp.WithString("list_id", mcp.Description("Restrict to a list")),
-			mcp.WithString("task_id", mcp.Description("Restrict to a task")),
+			mcp.WithArray("events", mcp.Required(), mcp.WithStringItems(), mcp.Description(webhookEventsDescription)),
+			mcp.WithString("space_id", mcp.Description("Restrict to a space; ignored if folder_id/list_id/task_id is also given")),
+			mcp.WithString("folder_id", mcp.Description("Restrict to a folder; ignored if list_id/task_id is also given")),
+			mcp.WithString("list_id", mcp.Description("Restrict to a list; ignored if task_id is also given")),
+			mcp.WithString("task_id", mcp.Description("Restrict to a task; takes precedence over space_id/folder_id/list_id if multiple are given")),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			endpoint, err := req.RequireString("endpoint")
@@ -62,7 +70,7 @@ func RegisterWebhookTools(s *server.MCPServer, c *clickup.Client) {
 			mcp.WithDescription("Update a ClickUp webhook's endpoint, events, or status."),
 			mcp.WithString("webhook_id", mcp.Required(), mcp.Description("Webhook ID")),
 			mcp.WithString("endpoint", mcp.Description("HTTPS URL to receive webhook events")),
-			mcp.WithArray("events", mcp.WithStringItems(), mcp.Description("Event names to subscribe to")),
+			mcp.WithArray("events", mcp.WithStringItems(), mcp.Description("Event names to subscribe to (see clickup_create_webhook's events parameter for the full list of valid names)")),
 			mcp.WithString("status", mcp.Description("active or suspended")),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {

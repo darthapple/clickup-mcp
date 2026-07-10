@@ -36,7 +36,9 @@ func RegisterDocTools(s *server.MCPServer, c *clickup.Client) {
 
 	s.AddTool(
 		mcp.NewTool("clickup_search_docs",
-			mcp.WithDescription("Search the Docs in a ClickUp workspace."),
+			mcp.WithDescription("Search the Docs in a ClickUp workspace. Returns at most 50 "+
+				"matching docs; if the workspace has more, only the first 50 are "+
+				"returned — this tool does not page further."),
 			mcp.WithString("team_id", mcp.Description("Workspace ID; defaults to CLICKUP_TEAM_ID")),
 			mcp.WithString("query", mcp.Description("Search text")),
 		),
@@ -120,13 +122,16 @@ func RegisterDocTools(s *server.MCPServer, c *clickup.Client) {
 
 	s.AddTool(
 		mcp.NewTool("clickup_update_doc_page",
-			mcp.WithDescription("Edit a page in a ClickUp Doc."),
+			mcp.WithDescription("Edit a page in a ClickUp Doc. IMPORTANT: if content_edit_mode "+
+				"is omitted, ClickUp defaults to \"replace\" — supplying content without "+
+				"explicitly passing content_edit_mode will silently overwrite/destroy "+
+				"the entire existing page, not append to it."),
 			mcp.WithString("team_id", mcp.Description("Workspace ID; defaults to CLICKUP_TEAM_ID")),
 			mcp.WithString("doc_id", mcp.Required(), mcp.Description("Doc ID")),
 			mcp.WithString("page_id", mcp.Required(), mcp.Description("Page ID")),
 			mcp.WithString("name", mcp.Description("Page name")),
 			mcp.WithString("content", mcp.Description("Page content (markdown)")),
-			mcp.WithString("content_edit_mode", mcp.Description("replace, append, or prepend")),
+			mcp.WithString("content_edit_mode", mcp.Description("replace (default if omitted — overwrites the entire page), append, or prepend. To add text without destroying existing content, pass \"append\" or \"prepend\" explicitly.")),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			docID, err := req.RequireString("doc_id")

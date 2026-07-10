@@ -82,8 +82,8 @@ func TestClickupCreateGoal(t *testing.T) {
 			if body["name"] != "Q3 Goal" {
 				t.Errorf("name = %v, want Q3 Goal", body["name"])
 			}
-			if body["due_date"] != float64(123456) {
-				t.Errorf("due_date = %v, want 123456", body["due_date"])
+			if body["due_date"] != float64(123000) {
+				t.Errorf("due_date = %v, want 123000", body["due_date"])
 			}
 			if body["multiple_owners"] != true {
 				t.Errorf("multiple_owners = %v, want true", body["multiple_owners"])
@@ -99,7 +99,7 @@ func TestClickupCreateGoal(t *testing.T) {
 		RegisterGoalTools(s, c)
 		res := callTool(t, s, "clickup_create_goal", map[string]any{
 			"name":            "Q3 Goal",
-			"due_date":        123456,
+			"due_date":        "1970-01-01 00:02:03",
 			"multiple_owners": true,
 			"owners":          []any{"u1", "u2"},
 		})

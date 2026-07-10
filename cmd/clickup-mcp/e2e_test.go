@@ -367,15 +367,15 @@ func TestE2ETimeTrackingLifecycle(t *testing.T) {
 
 	const durationMs = float64(3600000) // 1 hour
 	now := time.Now()
-	startMs := float64(now.Add(-2 * time.Hour).UnixMilli())
+	start := now.Add(-2 * time.Hour).UTC().Format("2006-01-02 15:04:05")
 	// Report window wide enough to comfortably contain the entry regardless
 	// of clock skew between this test and ClickUp's server.
-	reportStartMs := float64(now.Add(-24 * time.Hour).UnixMilli())
-	reportEndMs := float64(now.Add(24 * time.Hour).UnixMilli())
+	reportStart := now.Add(-24 * time.Hour).UTC().Format("2006-01-02 15:04:05")
+	reportEnd := now.Add(24 * time.Hour).UTC().Format("2006-01-02 15:04:05")
 
 	entry := callE2ETool(ctx, t, c, "clickup_create_time_entry", map[string]any{
 		"task_id":     taskID,
-		"start":       startMs,
+		"start":       start,
 		"duration":    durationMs,
 		"description": "e2e time tracking entry",
 	})
@@ -393,8 +393,8 @@ func TestE2ETimeTrackingLifecycle(t *testing.T) {
 
 	listed := callE2ETool(ctx, t, c, "clickup_list_time_entries", map[string]any{
 		"task_id":    taskID,
-		"start_date": reportStartMs,
-		"end_date":   reportEndMs,
+		"start_date": reportStart,
+		"end_date":   reportEnd,
 	})
 	entries, _ := listed["data"].([]any)
 	found := false
@@ -411,8 +411,8 @@ func TestE2ETimeTrackingLifecycle(t *testing.T) {
 
 	report := callE2ETool(ctx, t, c, "clickup_get_list_time_report", map[string]any{
 		"list_id":    e2eListID,
-		"start_date": reportStartMs,
-		"end_date":   reportEndMs,
+		"start_date": reportStart,
+		"end_date":   reportEnd,
 	})
 	if report["total_duration_ms"] != durationMs {
 		t.Errorf("report total_duration_ms = %v, want %v", report["total_duration_ms"], durationMs)
@@ -457,8 +457,8 @@ func TestE2ETimeTrackingLifecycle(t *testing.T) {
 
 	listedAfterDelete := callE2ETool(ctx, t, c, "clickup_list_time_entries", map[string]any{
 		"task_id":    taskID,
-		"start_date": reportStartMs,
-		"end_date":   reportEndMs,
+		"start_date": reportStart,
+		"end_date":   reportEnd,
 	})
 	remaining, _ := listedAfterDelete["data"].([]any)
 	for _, e := range remaining {

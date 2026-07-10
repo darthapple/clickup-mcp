@@ -18,14 +18,23 @@ func RegisterTimeTrackingTools(s *server.MCPServer, c *clickup.Client) {
 				"own user — other assignees' and older entries are silently dropped with "+
 				"no error. For a complete or historical report, always pass explicit "+
 				"start_date/end_date (and assignee, to see another user's time), or "+
-				"scope with task_id/list_id/folder_id/space_id instead. "+
-				"All returned timestamps (start, end, at) and duration are Unix "+
-				"epoch milliseconds in UTC — convert to the user's local timezone "+
-				"before computing a calendar date, since a UTC-vs-local mismatch can "+
-				"shift entries near midnight onto the wrong day."),
+				"scope with task_id/list_id/folder_id/space_id instead. For a "+
+				"ready-made per-list report (every task plus rolled-up/totaled time) "+
+				"or a full per-user timesheet (every entry resolved to space/folder/"+
+				"list/task names, with per-task totals), use "+
+				"clickup_get_list_time_report or clickup_get_user_time_report "+
+				"instead of assembling one by hand from this tool's raw entries. "+
+				"Known limitation: this endpoint has no documented pagination, so an "+
+				"extremely high-volume query could theoretically be capped by "+
+				"ClickUp server-side — not yet observed, but not provably ruled out. "+
+				"All returned timestamps (start, end, at) are human-readable UTC "+
+				"datetime strings (\"YYYY-MM-DD HH:MM:SS\") — convert to the user's local "+
+				"timezone before computing a calendar date, since a UTC-vs-local mismatch "+
+				"can shift entries near midnight onto the wrong day. duration is still "+
+				"raw milliseconds (an elapsed length, not a point in time)."),
 			mcp.WithString("team_id", mcp.Description("Workspace ID; defaults to CLICKUP_TEAM_ID")),
-			mcp.WithNumber("start_date", mcp.Description("Filter: range start, Unix ms timestamp (UTC). Omitting this (along with end_date) restricts results to the last 30 days.")),
-			mcp.WithNumber("end_date", mcp.Description("Filter: range end, Unix ms timestamp (UTC)")),
+			mcp.WithString("start_date", mcp.Description("Filter: range start, UTC \"YYYY-MM-DD HH:MM:SS\" or bare \"YYYY-MM-DD\" (midnight UTC). Omitting this (along with end_date) restricts results to the last 30 days.")),
+			mcp.WithString("end_date", mcp.Description("Filter: range end, UTC \"YYYY-MM-DD HH:MM:SS\" or bare \"YYYY-MM-DD\" (midnight UTC)")),
 			mcp.WithString("assignee", mcp.Description("Filter by assignee user ID. Accepts multiple user IDs as a single comma-separated "+
 				"string (e.g. \"170440755,87915023,118082738\") to fetch several users' entries in one call — "+
 				"this is the only way to get a complete multi-user report, since looping per-user is easy to "+
@@ -45,11 +54,17 @@ func RegisterTimeTrackingTools(s *server.MCPServer, c *clickup.Client) {
 				TaskID:   req.GetString("task_id", ""),
 			}
 			if hasArg(req, "start_date") {
-				v := int64(req.GetFloat("start_date", 0))
+				v, err := requireDateTimeArg(req, "start_date")
+				if err != nil {
+					return ErrorResult(err)
+				}
 				filters.StartDate = &v
 			}
 			if hasArg(req, "end_date") {
-				v := int64(req.GetFloat("end_date", 0))
+				v, err := requireDateTimeArg(req, "end_date")
+				if err != nil {
+					return ErrorResult(err)
+				}
 				filters.EndDate = &v
 			}
 			out, err := c.ListTimeEntries(ctx, teamIDOrDefault(req, c), filters)
@@ -65,7 +80,7 @@ func RegisterTimeTrackingTools(s *server.MCPServer, c *clickup.Client) {
 			mcp.WithDescription("Create a manual time entry in a ClickUp workspace."),
 			mcp.WithString("team_id", mcp.Description("Workspace ID; defaults to CLICKUP_TEAM_ID")),
 			mcp.WithString("task_id", mcp.Description("Task ID to log time against")),
-			mcp.WithNumber("start", mcp.Required(), mcp.Description("Start time, Unix ms timestamp (UTC)")),
+			mcp.WithString("start", mcp.Required(), mcp.Description("Start time, UTC \"YYYY-MM-DD HH:MM:SS\" or bare \"YYYY-MM-DD\" (midnight UTC)")),
 			mcp.WithNumber("duration", mcp.Required(), mcp.Description("Duration in milliseconds (not seconds)")),
 			mcp.WithString("description", mcp.Description("Entry description")),
 			mcp.WithBoolean("billable", mcp.Description("Mark as billable")),
@@ -73,7 +88,7 @@ func RegisterTimeTrackingTools(s *server.MCPServer, c *clickup.Client) {
 			mcp.WithArray("tags", mcp.WithStringItems(), mcp.Description("Tag names")),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			start, err := req.RequireFloat("start")
+			start, err := requireDateTimeArg(req, "start")
 			if err != nil {
 				return ErrorResult(err)
 			}
@@ -81,7 +96,7 @@ func RegisterTimeTrackingTools(s *server.MCPServer, c *clickup.Client) {
 			if err != nil {
 				return ErrorResult(err)
 			}
-			body := map[string]any{"start": int64(start), "duration": int64(duration)}
+			body := map[string]any{"start": start, "duration": int64(duration)}
 			if hasArg(req, "task_id") {
 				body["tid"] = req.GetString("task_id", "")
 			}
@@ -121,7 +136,7 @@ func RegisterTimeTrackingTools(s *server.MCPServer, c *clickup.Client) {
 			mcp.WithDescription("Update a ClickUp time entry."),
 			mcp.WithString("team_id", mcp.Description("Workspace ID; defaults to CLICKUP_TEAM_ID")),
 			mcp.WithString("timer_id", mcp.Required(), mcp.Description("Time entry ID")),
-			mcp.WithNumber("start", mcp.Description("Start time, Unix ms timestamp (UTC)")),
+			mcp.WithString("start", mcp.Description("Start time, UTC \"YYYY-MM-DD HH:MM:SS\" or bare \"YYYY-MM-DD\" (midnight UTC)")),
 			mcp.WithNumber("duration", mcp.Description("Duration in milliseconds (not seconds)")),
 			mcp.WithString("description", mcp.Description("Entry description")),
 			mcp.WithBoolean("billable", mcp.Description("Mark as billable")),
@@ -132,7 +147,9 @@ func RegisterTimeTrackingTools(s *server.MCPServer, c *clickup.Client) {
 				return ErrorResult(err)
 			}
 			body := map[string]any{}
-			setFloat(body, req, "start")
+			if err := setDateTime(body, req, "start"); err != nil {
+				return ErrorResult(err)
+			}
 			setFloat(body, req, "duration")
 			setString(body, req, "description")
 			setBool(body, req, "billable")

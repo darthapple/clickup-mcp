@@ -67,8 +67,8 @@ func TestClickupListTimeEntries(t *testing.T) {
 		RegisterTimeTrackingTools(s, c)
 		res := callTool(t, s, "clickup_list_time_entries", map[string]any{
 			"team_id":    "888",
-			"start_date": float64(1000),
-			"end_date":   float64(2000),
+			"start_date": "1970-01-01 00:00:01",
+			"end_date":   "1970-01-01 00:00:02",
 			"assignee":   "u1",
 			"space_id":   "sp1",
 			"folder_id":  "f1",
@@ -131,7 +131,7 @@ func TestClickupCreateTimeEntry(t *testing.T) {
 		c, _ := newTestClient(t, neverCalled(t))
 		s := server.NewMCPServer("test", "1.0.0")
 		RegisterTimeTrackingTools(s, c)
-		res := callTool(t, s, "clickup_create_time_entry", map[string]any{"start": float64(1000)})
+		res := callTool(t, s, "clickup_create_time_entry", map[string]any{"start": "1970-01-01 00:00:01"})
 		if !res.IsError {
 			t.Fatal("expected IsError = true for missing duration")
 		}
@@ -150,7 +150,7 @@ func TestClickupCreateTimeEntry(t *testing.T) {
 		res := callTool(t, s, "clickup_create_time_entry", map[string]any{
 			"team_id":     "777",
 			"task_id":     "t1",
-			"start":       float64(1000),
+			"start":       "1970-01-01 00:00:01",
 			"duration":    float64(5000),
 			"description": "worked",
 			"billable":    true,
@@ -192,7 +192,7 @@ func TestClickupCreateTimeEntry(t *testing.T) {
 		s := server.NewMCPServer("test", "1.0.0")
 		RegisterTimeTrackingTools(s, c)
 		res := callTool(t, s, "clickup_create_time_entry", map[string]any{
-			"start":    float64(1000),
+			"start":    "1970-01-01 00:00:01",
 			"duration": float64(5000),
 		})
 		if res.IsError {
@@ -289,7 +289,7 @@ func TestClickupUpdateTimeEntry(t *testing.T) {
 		RegisterTimeTrackingTools(s, c)
 		res := callTool(t, s, "clickup_update_time_entry", map[string]any{
 			"timer_id":    "e1",
-			"start":       float64(10),
+			"start":       "1970-01-01 00:00:00",
 			"duration":    float64(20),
 			"description": "d",
 			"billable":    false,

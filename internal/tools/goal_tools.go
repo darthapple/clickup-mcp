@@ -29,11 +29,11 @@ func RegisterGoalTools(s *server.MCPServer, c *clickup.Client) {
 			mcp.WithDescription("Create a goal in a ClickUp workspace."),
 			mcp.WithString("team_id", mcp.Description("Workspace ID; defaults to CLICKUP_TEAM_ID")),
 			mcp.WithString("name", mcp.Required(), mcp.Description("Goal name")),
-			mcp.WithNumber("due_date", mcp.Description("Due date, Unix ms timestamp")),
+			mcp.WithString("due_date", mcp.Description("Due date, UTC \"YYYY-MM-DD HH:MM:SS\" or bare \"YYYY-MM-DD\" (midnight UTC). Renders as bare date in responses (ClickUp goals have no time-of-day component).")),
 			mcp.WithString("description", mcp.Description("Goal description")),
 			mcp.WithBoolean("multiple_owners", mcp.Description("Allow multiple owners")),
 			mcp.WithArray("owners", mcp.WithStringItems(), mcp.Description("Owner user IDs")),
-			mcp.WithString("color", mcp.Description("Goal color")),
+			mcp.WithString("color", mcp.Description("Goal color as a hex code, e.g. #32a852.")),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			name, err := req.RequireString("name")
@@ -41,7 +41,9 @@ func RegisterGoalTools(s *server.MCPServer, c *clickup.Client) {
 				return ErrorResult(err)
 			}
 			body := map[string]any{"name": name}
-			setFloat(body, req, "due_date")
+			if err := setDateTime(body, req, "due_date"); err != nil {
+				return ErrorResult(err)
+			}
 			setString(body, req, "description")
 			setBool(body, req, "multiple_owners")
 			setStringSlice(body, req, "owners")
@@ -77,11 +79,11 @@ func RegisterGoalTools(s *server.MCPServer, c *clickup.Client) {
 			mcp.WithDescription("Update a ClickUp goal."),
 			mcp.WithString("goal_id", mcp.Required(), mcp.Description("Goal ID")),
 			mcp.WithString("name", mcp.Description("Goal name")),
-			mcp.WithNumber("due_date", mcp.Description("Due date, Unix ms timestamp")),
+			mcp.WithString("due_date", mcp.Description("Due date, UTC \"YYYY-MM-DD HH:MM:SS\" or bare \"YYYY-MM-DD\" (midnight UTC). Renders as bare date in responses (ClickUp goals have no time-of-day component).")),
 			mcp.WithString("description", mcp.Description("Goal description")),
 			mcp.WithArray("add_owners", mcp.WithStringItems(), mcp.Description("Owner user IDs to add")),
 			mcp.WithArray("rem_owners", mcp.WithStringItems(), mcp.Description("Owner user IDs to remove")),
-			mcp.WithString("color", mcp.Description("Goal color")),
+			mcp.WithString("color", mcp.Description("Goal color as a hex code, e.g. #32a852.")),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			goalID, err := req.RequireString("goal_id")
@@ -90,7 +92,9 @@ func RegisterGoalTools(s *server.MCPServer, c *clickup.Client) {
 			}
 			body := map[string]any{}
 			setString(body, req, "name")
-			setFloat(body, req, "due_date")
+			if err := setDateTime(body, req, "due_date"); err != nil {
+				return ErrorResult(err)
+			}
 			setString(body, req, "description")
 			setStringSlice(body, req, "add_owners")
 			setStringSlice(body, req, "rem_owners")
@@ -125,7 +129,7 @@ func RegisterGoalTools(s *server.MCPServer, c *clickup.Client) {
 			mcp.WithDescription("Create a key result (target) on a ClickUp goal."),
 			mcp.WithString("goal_id", mcp.Required(), mcp.Description("Goal ID")),
 			mcp.WithString("name", mcp.Required(), mcp.Description("Key result name")),
-			mcp.WithString("type", mcp.Required(), mcp.Description("number, currency, boolean, percentage, or automatic")),
+			mcp.WithString("type", mcp.Required(), mcp.Description("number, currency, boolean, percentage, or automatic (automatic derives progress from linked tasks/lists via task_ids/list_ids — those two params have no effect for the other four types)")),
 			mcp.WithArray("owners", mcp.WithStringItems(), mcp.Description("Owner user IDs")),
 			mcp.WithNumber("steps_start", mcp.Description("Starting value")),
 			mcp.WithNumber("steps_end", mcp.Description("Target value")),

@@ -12,9 +12,17 @@ import (
 )
 
 // JSONResult renders v (typically the raw decoded ClickUp API response) as
-// the tool call's result.
-func JSONResult(v any) (*mcp.CallToolResult, error) {
-	return mcp.NewToolResultJSON(v)
+// the tool call's result, converting every recognized Unix-ms date/time
+// field (see dateTimeKeys in datetime.go) to a human-readable UTC string
+// first. overrides names keys that should render as full datetime for this
+// call even though they're normally bare-date (dateOnlyKeys) — see
+// convertDateTimes.
+func JSONResult(v any, overrides ...string) (*mcp.CallToolResult, error) {
+	ov := make(map[string]bool, len(overrides))
+	for _, k := range overrides {
+		ov[k] = true
+	}
+	return mcp.NewToolResultJSON(convertDateTimes(v, ov))
 }
 
 // ErrorResult renders err as a failed-but-not-crashed tool result: ClickUp

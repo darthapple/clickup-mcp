@@ -80,8 +80,8 @@ func RegisterCustomFieldTools(s *server.MCPServer, c *clickup.Client) {
 
 	s.AddTool(
 		mcp.NewTool("clickup_set_task_custom_field",
-			mcp.WithDescription("Set a custom field's value on a ClickUp task. The value's required shape depends on the field's type (text, number, dropdown option index, label UUID array, checkbox bool, etc); pass it JSON-encoded in value_json."),
-			mcp.WithString("task_id", mcp.Required(), mcp.Description("Task ID")),
+			mcp.WithDescription("Set a custom field's value on a ClickUp task. The value's required shape depends on the field's type (text, number, dropdown option index, label UUID array, checkbox bool, etc); pass it JSON-encoded in value_json. Call clickup_list_list_fields (or list_folder_fields/list_space_fields/list_workspace_fields) first to look up field_id, the field's type, and — for dropdown/label fields — the valid option values."),
+			mcp.WithString("task_id", mcp.Required(), mcp.Description("Task ID"+taskIDCaveat)),
 			mcp.WithString("field_id", mcp.Required(), mcp.Description("Custom field ID")),
 			mcp.WithString("value_json", mcp.Required(), mcp.Description(`JSON-encoded field value, e.g. "42", "\"some text\"", or [\"uuid1\",\"uuid2\"]`)),
 		),
@@ -112,7 +112,7 @@ func RegisterCustomFieldTools(s *server.MCPServer, c *clickup.Client) {
 	s.AddTool(
 		mcp.NewTool("clickup_remove_task_custom_field",
 			mcp.WithDescription("Clear a custom field's value on a ClickUp task."),
-			mcp.WithString("task_id", mcp.Required(), mcp.Description("Task ID")),
+			mcp.WithString("task_id", mcp.Required(), mcp.Description("Task ID"+taskIDCaveat)),
 			mcp.WithString("field_id", mcp.Required(), mcp.Description("Custom field ID")),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {

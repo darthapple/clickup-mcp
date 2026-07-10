@@ -60,8 +60,8 @@ func TestClickupGetListTimeReport(t *testing.T) {
 		RegisterReportTools(s, c)
 
 		res := callTool(t, s, "clickup_get_list_time_report", map[string]any{
-			"start_date": float64(0),
-			"end_date":   float64(1000),
+			"start_date": "1970-01-01 00:00:00",
+			"end_date":   "1970-01-01 00:00:01",
 		})
 		if !res.IsError {
 			t.Fatal("IsError = false, want true (missing list_id)")
@@ -69,7 +69,7 @@ func TestClickupGetListTimeReport(t *testing.T) {
 
 		res = callTool(t, s, "clickup_get_list_time_report", map[string]any{
 			"list_id":  "list1",
-			"end_date": float64(1000),
+			"end_date": "1970-01-01 00:00:01",
 		})
 		if !res.IsError {
 			t.Fatal("IsError = false, want true (missing start_date)")
@@ -77,7 +77,7 @@ func TestClickupGetListTimeReport(t *testing.T) {
 
 		res = callTool(t, s, "clickup_get_list_time_report", map[string]any{
 			"list_id":    "list1",
-			"start_date": float64(0),
+			"start_date": "1970-01-01 00:00:00",
 		})
 		if !res.IsError {
 			t.Fatal("IsError = false, want true (missing end_date)")
@@ -122,8 +122,8 @@ func TestClickupGetListTimeReport(t *testing.T) {
 
 		res := callTool(t, s, "clickup_get_list_time_report", map[string]any{
 			"list_id":    "list1",
-			"start_date": float64(0),
-			"end_date":   float64(100000),
+			"start_date": "1970-01-01 00:00:00",
+			"end_date":   "1970-01-01 00:01:40",
 		})
 		if res.IsError {
 			t.Fatalf("IsError = true, want false; text = %q", textOf(t, res))
@@ -190,7 +190,7 @@ func TestClickupGetListTimeReport(t *testing.T) {
 		RegisterReportTools(s, c)
 
 		res := callTool(t, s, "clickup_get_list_time_report", map[string]any{
-			"list_id": "missing", "start_date": float64(0), "end_date": float64(1),
+			"list_id": "missing", "start_date": "1970-01-01 00:00:00", "end_date": "1970-01-01 00:00:00",
 		})
 		if !res.IsError {
 			t.Fatal("IsError = false, want true")
@@ -205,7 +205,7 @@ func TestClickupGetUserTimeReport(t *testing.T) {
 		RegisterReportTools(s, c)
 
 		res := callTool(t, s, "clickup_get_user_time_report", map[string]any{
-			"start_date": float64(0), "end_date": float64(1),
+			"start_date": "1970-01-01 00:00:00", "end_date": "1970-01-01 00:00:00",
 		})
 		if !res.IsError {
 			t.Fatal("IsError = false, want true (missing user_id)")
@@ -239,7 +239,7 @@ func TestClickupGetUserTimeReport(t *testing.T) {
 		RegisterReportTools(s, c)
 
 		res := callTool(t, s, "clickup_get_user_time_report", map[string]any{
-			"user_id": "user1", "start_date": float64(0), "end_date": float64(100000),
+			"user_id": "user1", "start_date": "1970-01-01 00:00:00", "end_date": "1970-01-01 00:01:40",
 		})
 		if res.IsError {
 			t.Fatalf("IsError = true, want false; text = %q", textOf(t, res))
@@ -303,7 +303,7 @@ func TestClickupGetUserTimeReport(t *testing.T) {
 		RegisterReportTools(s, c)
 
 		res := callTool(t, s, "clickup_get_user_time_report", map[string]any{
-			"user_id": "user1", "start_date": float64(0), "end_date": float64(1),
+			"user_id": "user1", "start_date": "1970-01-01 00:00:00", "end_date": "1970-01-01 00:00:00",
 		})
 		if !res.IsError {
 			t.Fatal("IsError = false, want true")

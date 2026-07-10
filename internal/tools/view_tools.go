@@ -223,7 +223,10 @@ func RegisterViewTools(s *server.MCPServer, c *clickup.Client) {
 
 	s.AddTool(
 		mcp.NewTool("clickup_get_view_tasks",
-			mcp.WithDescription("Get the tasks visible in a ClickUp view (paginated)."),
+			mcp.WithDescription("Get the tasks visible in a ClickUp view. Fetches ONE page per "+
+				"call — this tool does NOT auto-paginate. ClickUp's response includes a "+
+				"last_page boolean; keep incrementing page and re-calling until "+
+				"last_page is true to retrieve the full list."),
 			mcp.WithString("view_id", mcp.Required(), mcp.Description("View ID")),
 			mcp.WithInteger("page", mcp.Description("Page number, 0-indexed")),
 		),

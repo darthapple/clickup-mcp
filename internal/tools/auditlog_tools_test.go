@@ -22,8 +22,8 @@ func TestClickupCreateAuditLogReport(t *testing.T) {
 		RegisterAuditLogTools(s, c)
 		res := callTool(t, s, "clickup_create_audit_log_report", map[string]any{
 			"team_id":     "123",
-			"start_date":  float64(1000),
-			"end_date":    float64(2000),
+			"start_date":  "1970-01-01 00:00:01",
+			"end_date":    "1970-01-01 00:00:02",
 			"event_types": []any{"taskCreated", "taskDeleted"},
 		})
 		if res.IsError {

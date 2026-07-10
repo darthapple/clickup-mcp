@@ -169,7 +169,7 @@ func RegisterListTools(s *server.MCPServer, c *clickup.Client) {
 		mcp.NewTool("clickup_add_task_to_list",
 			mcp.WithDescription("Add an existing task to an additional list."),
 			mcp.WithString("list_id", mcp.Required(), mcp.Description("List ID")),
-			mcp.WithString("task_id", mcp.Required(), mcp.Description("Task ID")),
+			mcp.WithString("task_id", mcp.Required(), mcp.Description("Task ID"+taskIDCaveat)),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			listID, err := req.RequireString("list_id")
@@ -191,7 +191,7 @@ func RegisterListTools(s *server.MCPServer, c *clickup.Client) {
 		mcp.NewTool("clickup_remove_task_from_list",
 			mcp.WithDescription("Remove a task from an additional list (does not delete the task)."),
 			mcp.WithString("list_id", mcp.Required(), mcp.Description("List ID")),
-			mcp.WithString("task_id", mcp.Required(), mcp.Description("Task ID")),
+			mcp.WithString("task_id", mcp.Required(), mcp.Description("Task ID"+taskIDCaveat)),
 		),
 		func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			listID, err := req.RequireString("list_id")

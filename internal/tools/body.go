@@ -7,6 +7,16 @@ import (
 	"github.com/mark3labs/mcp-go/mcp"
 )
 
+// taskIDCaveat is appended to every task_id-shaped parameter description on
+// tools other than clickup_get_task. Only clickup_get_task wires up
+// ClickUp's custom_task_ids/team_id params — every other task-scoped tool
+// (update, delete, comments, checklists, custom fields, dependencies, links,
+// list membership) only accepts the internal task ID, and silently 404s on
+// a custom ID like "CT-123" with no hint why, since an agent that learned
+// about custom task IDs from clickup_get_task's description has no way to
+// know these other tools don't support them.
+const taskIDCaveat = `; must be the ClickUp-generated ID (e.g. "868czmkqz"), not a custom task ID like "CT-123" — this tool does not support custom_task_ids. Resolve a custom ID to the internal one first via clickup_get_task.`
+
 // hasArg reports whether the caller explicitly supplied key, as opposed to
 // it being absent and defaulted by a Get* call. Used when building
 // create/update request bodies so unset optional fields are omitted rather
